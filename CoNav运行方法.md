@@ -13,6 +13,13 @@ source install/setup.bash
 ros2 launch realsense2_camera rs_launch.py align_depth.enable:=true
 ```
 
+显示error:resource temporarily unavailable是正常的
+
+ros2 launch realsense2_camera rs_launch.py \
+  align_depth.enable:=true \
+  rgb_camera.profile:=640x480x30 \
+  depth_module.profile:=640x480x30
+
 ### (1)每次启动前先确认没有旧相机节点
 
 启动相机前可以查：
@@ -35,7 +42,7 @@ ros2 node list | grep camera
 
 ```
 ros2 topic echo --once /camera/color/image_raw | grep -E "frame_id|height|width|encoding"
-ros2 topic echo --once /camera/aligned_depth_to_color/image_raw | grep -E"frame_id|height|width|encoding"
+ros2 topic echo --once /camera/aligned_depth_to_color/image_raw | grep -E "frame_id|height|width|encoding"
 ros2 topic info /camera/aligned_depth_to_color/image_raw -v
 ```
 
@@ -187,16 +194,101 @@ ip -details -statistics link show can0
 
 并转换成 Ranger 的：`/cmd_vel geometry_msgs/msg/Twist`
 
-**命令**：
+
+
+## adpter工作模式
+
+### 1. 默认是 `dry_run` 安全模式
+
+直接运行：
 
 ```
 source /opt/ros/humble/setup.bash
 source ~/agilex_ws/install/setup.bash
-
-python3 ~/zmq_to_cmd_vel_adapter.py
+python3 zmq_to_cmd_vel_adapter_safe.py
 ```
 
-正常输出：
+默认 **不会发布 `/cmd_vel`**。
+
+它只会：
+
+```
+接收 ZMQ speedctl
+解析 vx / vy / yaw
+打印原始速度
+打印限幅后的速度
+不让小车动
+```
+
+这个模式适合调试 Co-Nav2：
+
+```
+Co-Nav2 可以正常启动
+adapter 能看到它想发什么速度
+但 Ranger 不会动
+```
+
+### 2. 真车运行模式 `real_run`
+
+确认输出合理后，再运行：
+
+```
+python3 zmq_to_cmd_vel_adapter_safe.py --real-run
+python3 zmq_to_cmd_vel_adapter_safe.py --real-run --max-linear-x 0.05 --max-angular-z 0.15 --command-timeout 5.0
+```
+
+这个模式才会真正发布 `/cmd_vel`，小车会动。
+
+默认速度限制是：
+
+```
+linear.x  最大 ±0.08 m/s
+angular.z 最大 ±0.25 rad/s
+linear.y  固定为 0
+```
+
+也就是原来的：
+
+```
+linear.x ±0.2
+angular.z ±0.4
+```
+
+更保守。
+
+### 3. 自动停车 watchdog
+
+我加了超时保护：
+
+```
+如果 real_run 模式下 0.5 秒没有收到新的 speedctl，
+adapter 会自动发布一次 0 速度 /cmd_vel。
+```
+
+也可以改：
+
+```
+python3 zmq_to_cmd_vel_adapter_safe.py --real-run --command-timeout 0.3
+```
+
+这能避免 Co-Nav2 或 ZMQ 中断后，小车保持上一次速度继续动。
+
+------
+
+### 4. 关闭 adapter 时会发 0 速度
+
+在 `real_run` 模式下，如果你 Ctrl+C 关闭 adapter，它会尝试发布一次：
+
+```
+linear.x = 0
+angular.z = 0
+```
+
+让小车停下。
+
+
+
+### 正常输出：
 
 ```
 Adapter started: ZMQ speedctl -> /cmd_vel
