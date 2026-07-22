@@ -321,7 +321,7 @@ tf_transformations
 pyzmq
 ```
 
-命令：
+**命令**：
 
 ```
 cd ~/ws/Co-NavGPT2
@@ -357,3 +357,123 @@ Ranger 终端不要出现：
 Failed to send CAN frame
 ```
 
+**CoNav2适配器**的开启命令为
+
+```
+cd /home/isee-cdh/ws/Co-NavGPT2
+source /opt/ros/humble/setup.bash
+source install_ros2/setup.bash
+
+ros2 launch co_nav2_nav semantic_exploration.launch.py \
+  enable_odom_adapter:=true \
+  publish_camera_tf:=true \
+  publish_lidar_tf:=false \
+  publish_map_odom:=false \
+  enable_perception:=false
+```
+
+
+
+## 五.启动 Livox MID-360
+
+```
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+ros2 launch livox_ros_driver2 msg_MID360_launch.py
+```
+
+确认雷达数据正常：
+
+```
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+ros2 topic hz /livox/lidar
+ros2 topic hz /livox/imu
+```
+
+正常应该大概是：
+
+```
+/livox/lidar   约 10 Hz
+/livox/imu     约 200 Hz
+```
+
+## 六.启动 FAST-LIO2
+
+```
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+ros2 launch fast_lio mapping.launch.py config_file:=mid360.yaml rviz:=false
+```
+
+其中`rviz:=false`不开rviz
+
+如果启动正常，你应该能看到类似：
+
+```
+IMU Initial Done
+Node init finished
+```
+
+偶尔出现一次：
+
+```
+No point, skip this scan!
+```
+
+不一定是问题，只要后面有 `/Odometry` 输出即可
+
+## 检查 FAST-LIO2 输出
+
+```
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+ros2 topic list | grep -E "Odometry|cloud|path|tf"
+```
+
+重点看有没有：
+
+```
+/Odometry
+/cloud_registered
+/cloud_registered_body
+/path
+/tf
+```
+
+再检查频率：
+
+```
+ros2 topic hz /Odometry
+ros2 topic hz /cloud_registered
+ros2 topic hz /path
+```
+
+正常大概是：
+
+```
+/Odometry             约 10 Hz
+/cloud_registered     约 10 Hz
+/path                 约 1 Hz
+```
+
+当前基础导航链已经成功运行：
+
+```
+Livox → FAST_LIO → odom/base_link
+                     ↓
+cloud_registered_body → /scan → SLAM Toolbox
+                                      ↓
+                              /map + map→odom
+                                      ↓
+                                    Nav2
+```
+
+**形成如下TF树的启动顺序**是 Livox 驱动 --> FAST_LIO --> Co-Nav2 适配器
+
+```
+odom
+├── camera_init → body
+└── base_link
+    └── camera_link → camera_color_optical_frame
+```
