@@ -81,13 +81,14 @@ elif (( ranger_publishers == 1 )); then
   echo "跳过终端 2：Ranger 节点已经运行"
 else
   can_output="$(ip -details link show can0 2>&1 || true)"
-  if ! grep -q 'state UP' <<<"$can_output" || ! grep -q 'can state ERROR-ACTIVE' <<<"$can_output"; then
-    echo "错误：can0 不是 UP / ERROR-ACTIVE。请先配置 CAN。" >&2
+  if ! grep -q '^[0-9].*can0:' <<<"$can_output"; then
+    echo "错误：未找到 can0，请检查 USB-CAN 连接。" >&2
     exit 1
   fi
   open_terminal "CoNav-02 Ranger" "${script_dir}/02_ranger.sh"
 fi
-wait_for_publisher /odom 20 "Ranger /odom"
+# can0 为 DOWN 时，终端 2 会请求 sudo 密码，因此留足输入时间。
+wait_for_publisher /odom 60 "Ranger /odom"
 require_single_publisher /odom "Ranger"
 ranger_tf="$(ros2 param get /ranger_base_node publish_odom_tf 2>/dev/null || true)"
 if ! grep -q 'False' <<<"$ranger_tf"; then

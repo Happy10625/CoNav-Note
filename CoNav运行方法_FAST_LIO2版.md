@@ -210,6 +210,9 @@ sudo ip link set can0 type can bitrate 500000
 sudo ip link set can0 up
 ```
 
+快速启动脚本中的 `02_ranger.sh` 会自动完成上述判断：`DOWN` 时执行
+`sudo ip link set can0 up type can bitrate 500000`，`UP` 时直接继续启动 Ranger。
+
 启动 Ranger Mini 3.0：
 
 ```bash

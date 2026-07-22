@@ -1,4 +1,14 @@
-# Co-Nav2 快速启动脚本
+# Co-Nav2 脚本启动办法
+
+先看状态
+
+```bash
+ip -details -statistics link show can0
+# 状态为Down则
+sudo ip link set can0 up type can bitrate 500000
+```
+
+启动后再开始后面的脚本启动，一般的执行顺序是start-- chair_test-- stop为周期，然后排查问题。
 
 ## 一键按顺序启动
 
