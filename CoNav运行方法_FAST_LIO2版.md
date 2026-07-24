@@ -1,8 +1,10 @@
-# Co-Nav2 + FAST_LIO2 运行方法（chair 原地识别测试）
+# Co-Nav2 + FAST_LIO2 运行方法（chair 识别与接近测试）
 
 本文档用于当前 Ranger Mini 3.0、Livox MID-360、FAST_LIO_ROS2、RealSense RGB-D、SLAM Toolbox、Nav2 和 Co-Nav2 系统。
 
-当前测试目标是：小车在空旷区域原地分段旋转，识别放在侧面的 `chair`，发布椅子的 `map` 坐标；识别成功后停车，不进行 frontier 平移，不接近椅子。
+当前测试目标是：小车在受控区域分段旋转，识别 `chair` 并发布椅子的 `map`
+坐标；识别成功后由 Nav2 移动至车体前缘距目标不超过 `0.50 m`。系统不进行
+frontier 平移；找不到满足距离要求的安全路径时停车并进入 `FAILED`。
 
 > 本文档不再使用旧版 `ros_single_nav.py`、ZMQ 速度适配器或 ROS 1 bridge。不要同时启动这些旧节点。
 
@@ -10,11 +12,11 @@
 
 # 一、运行前安全要求
 
-1. 小车中心周围至少留出 `1 m` 无障碍空间。
+1. 小车到目标的完整接近路径和目标四周必须无人、无杂物，并排除台阶和落差。
 2. 椅子放在小车右侧约 `1.5～2.5 m`，不要放进车体旋转范围。
 3. 椅子到相机的有效深度必须小于 `4 m`，并保证光照正常、主体没有被遮挡。
 4. 实体急停和遥控器必须放在操作人员手边。
-5. 当前模式没有启用可靠的雷达动态避障，只允许在空旷场地进行原地识别。
+5. 当前模式启用 Livox 点云障碍层，但无法可靠检测台阶和落差，只允许在受控场地测试。
 
 任何时候需要软件停止，另开终端执行：
 
@@ -67,7 +69,7 @@ cd /home/isee-cdh/松灵小车/conav_scripts
 ./start_all.sh
 ```
 
-该脚本严格按照本文终端 1～9 的顺序启动，并等待关键话题后再进入下一步。它只启动节点，不会自动让小车运动。
+该脚本严格按照本文终端 1～10 的顺序启动，并等待关键话题后再进入下一步。它只启动节点，不会自动让小车运动。
 
 启动完成后检查：
 
@@ -75,7 +77,7 @@ cd /home/isee-cdh/松灵小车/conav_scripts
 ./check_all.sh
 ```
 
-确认全部通过后启用 chair 原地识别：
+确认全部通过后启用 chair 识别与接近：
 
 ```bash
 ./arm_chair_test.sh
@@ -333,7 +335,7 @@ ros2 launch co_nav2_nav semantic_exploration.launch.py \
   enable_perception:=true \
   open_space_mode:=true \
   allow_frontier_after_scan:=false \
-  approach_enabled:=false \
+  approach_enabled:=true \
   enable_odom_adapter:=true \
   publish_camera_tf:=true \
   publish_lidar_tf:=false \
@@ -373,7 +375,7 @@ semantic_explorer.enabled = False
 target_object = chair
 open_space_mode = True
 allow_frontier_after_scan = False
-approach_enabled = False
+approach_enabled = True
 odom → base_link 连续输出
 odom → camera_color_optical_frame 连续输出
 /semantic_explorer/state 类型为 std_msgs/msg/String
@@ -472,7 +474,7 @@ bt_navigator = active [3]
 
 ---
 
-# 五、执行 chair 原地识别测试
+# 五、执行 chair 识别与接近测试
 
 ## 终端 8：监听识别状态
 
@@ -516,9 +518,34 @@ angular.z 可在转向时非零
 
 ---
 
+## 终端 10：启动 RViz 辅助验证
+
+快速脚本会在地图和 Nav2 激活后自动启动：
+
+```bash
+/home/isee-cdh/松灵小车/conav_scripts/10_rviz.sh
+```
+
+RViz 使用 `map` 作为 Fixed Frame，默认显示：
+
+```text
+/map                              二维占据地图
+/scan                             点云投影出的二维激光
+/cloud_registered                 FAST_LIO 注册点云
+/fastlio/odom                     适配后的车体里程计
+/semantic_explorer/markers        chair 目标和导航候选
+/camera/color/image_raw           RGB 相机画面
+TF                                map → odom → base_link → camera/livox
+```
+
+ARM 前确认地图、点云、LaserScan 和 TF 均无红色错误。识别后应看到
+`target` Marker；接近阶段应看到导航目标，车体轨迹应朝向目标且不穿过地图障碍。
+
+---
+
 ## 正式启用识别
 
-确认终端 1～9 全部通过检验后执行：
+确认终端 1～10 全部通过检验后执行：
 
 ```bash
 ros2 param set /semantic_explorer enabled true
@@ -540,9 +567,22 @@ data: TARGET_CONFIRMED
 
 ```text
 State -> TARGET_CONFIRMED
+State -> APPROACHING
+State -> SUCCEEDED
 ```
 
-Nav2 会取消当前旋转目标。由于 `approach_enabled=false`，小车不会接近椅子；由于 `allow_frontier_after_scan=false`，扫描结束后也不会执行 frontier 平移。
+Nav2 会取消当前旋转目标，在目标周围生成中心距约 `0.81 m` 的几何候选点，
+并像 Co-Nav2 的 FMM 规划一样把可通行性判断交给路径规划器：代码不再依据
+`/map` 是否全为零、是否包含 unknown 或额外清障窗口预先删除候选。Nav2
+结合膨胀后的代价地图逐一验证路径，再向可达候选移动。到达后重新计算
+`base_link` 到目标的平面距离；该距离
+不超过 `0.86 m` 时，按车体前缘 `0.36 m` 计算，外壳到目标不超过 `0.50 m`。
+随后系统进入 `SUCCEEDED` 并发布零速度。由于
+`allow_frontier_after_scan=false`，扫描结束后不会执行 frontier 平移。
+
+如果 Nav2 无法规划到任何候选点、导航执行失败，或者到达后距离
+检查不通过，系统会取消导航、发布零速度并进入 `FAILED`，不会退回搜索或选择
+更远的停靠点。
 
 ### 查看椅子全局坐标
 
@@ -565,11 +605,12 @@ pose:
 ### 最终通过指标
 
 ```text
-状态进入 TARGET_CONFIRMED
+状态依次进入 TARGET_CONFIRMED、APPROACHING、SUCCEEDED
 Marker 的 frame_id 为 map、ns 为 target
-识别后 Nav2 目标被取消
+base_link 到目标的二维距离不超过 0.86 m，即车体前缘距目标不超过 0.50 m
+到达后 Nav2 目标被取消
 底盘最终 linear.x、linear.y、angular.z 全部回到 0
-整个测试没有发生直线探索或目标接近
+整个测试没有发生 frontier 探索；无安全路径时进入 FAILED 并停车
 ```
 
 停止并复核：
@@ -681,7 +722,7 @@ Livox MID-360
           SLAM Toolbox                            target Marker in map
                  │
                  ▼
-        /map + map → odom ──→ Nav2 原地分段转向
+        /map + map → odom ──→ Nav2 分段转向与目标接近
 ```
 
 最终 TF 必须是一棵连通树：

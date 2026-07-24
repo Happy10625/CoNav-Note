@@ -4,7 +4,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${script_dir}/common.sh"
 
 if ! command -v gnome-terminal >/dev/null 2>&1; then
-  echo "错误：没有找到 gnome-terminal。请分别运行 01～09 脚本。" >&2
+  echo "错误：没有找到 gnome-terminal。请分别运行 01～10 脚本。" >&2
   exit 1
 fi
 
@@ -159,7 +159,7 @@ elif (( semantic_publishers == 1 )); then
   existing_approach="$(ros2 param get /semantic_explorer approach_enabled 2>/dev/null || true)"
   if ! grep -q 'False' <<<"$existing_enabled" || \
      ! grep -q 'False' <<<"$existing_frontier" || \
-     ! grep -q 'False' <<<"$existing_approach"; then
+     ! grep -q 'True' <<<"$existing_approach"; then
     echo "错误：现有 semantic_explorer 不是安全禁用配置。请先运行 stop_robot.sh 并关闭旧 launch。" >&2
     exit 1
   fi
@@ -236,6 +236,11 @@ fi
 
 open_terminal "CoNav-08 识别状态" "${script_dir}/08_watch_state.sh"
 open_terminal "CoNav-09 底盘速度" "${script_dir}/09_watch_odom.sh"
+if has_node /conav_validation_rviz; then
+  echo "跳过终端 10：Co-Nav2 RViz 已经运行"
+else
+  open_terminal "CoNav-10 RViz验证" "${script_dir}/10_rviz.sh"
+fi
 
 echo
 echo "所有节点已按顺序启动，但小车尚未 ARM。"

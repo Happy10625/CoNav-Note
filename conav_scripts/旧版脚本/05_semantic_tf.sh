@@ -13,9 +13,8 @@ exec ros2 launch co_nav2_nav semantic_exploration.launch.py \
   enable_perception:=true \
   open_space_mode:=true \
   allow_frontier_after_scan:=false \
-  approach_enabled:=false \
+  approach_enabled:=true \
   enable_odom_adapter:="${enable_adapter}" \
   publish_camera_tf:="${publish_camera}" \
   publish_lidar_tf:=false \
   publish_map_odom:=false
-
