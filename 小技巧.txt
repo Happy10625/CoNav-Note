@@ -1,0 +1,6 @@
+在插入鼠标后禁用觸控板：
+gsettings set org.gnome.desktop.peripherals.touchpad send-events 'disabled-on-external-mouse'
+
+重新启用：
+gsettings set org.gnome.desktop.peripherals.touchpad send-events 'enabled'
+完全禁用则'disabled'
