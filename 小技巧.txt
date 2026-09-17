@@ -4,3 +4,6 @@ gsettings set org.gnome.desktop.peripherals.touchpad send-events 'disabled-on-ex
 重新启用：
 gsettings set org.gnome.desktop.peripherals.touchpad send-events 'enabled'
 完全禁用则'disabled'
+
+清回收站：
+rm -rf ~/.local/share/Trash/*
