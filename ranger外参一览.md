@@ -9,7 +9,7 @@
 | 关系 | 平移 `[x,y,z]`（m） | RPY（rad） | 含义与用途 | 数值来源 |
 |---|---|---|---|---|
 | `T_base_link_body` | `[0.299, -0.02329, 0.32088]` | `[0, 0, 3.141592653589793]` | FAST-LIO的IMU/body原点位于车体参考点前方29.9 cm、右侧2.329 cm、上方32.088 cm；绕z转180°。把FAST-LIO的机体位姿换算为Nav2使用的车体位姿。 | [config/robot.yaml](../config/robot.yaml:8)；[适配器默认值](../vlm_nav/fastlio_odom_adapter.py:78) |
-| `T_base_link_camera_link` | `[-0.16, 0, 1.185]` | `[0, 0.45204034, 0]` | 相机安装参考系位于车体参考点后方16 cm、上方118.5 cm；正pitch约25.90°，在此轴向约定下为朝前下俯。用于将RGB-D观测关联到车体及地图。高度相对base_link原点，不自动等于离地高度。 | [launch/vlm_navigation.launch.py](../launch/vlm_navigation.launch.py:43) |
+| `T_base_link_camera_link` | `[-0.16, 0, 1.185]`<br />后续高度为1.595m,暂定 | `[0, 0.45204034, 0]` | 相机安装参考系位于车体参考点后方16 cm、上方118.5 cm；正pitch约25.90°，在此轴向约定下为朝前下俯。用于将RGB-D观测关联到车体及地图。高度相对base_link原点，不自动等于离地高度。 | [launch/vlm_navigation.launch.py](../launch/vlm_navigation.launch.py:43) |
 | `T_odom_camera_init` | `[0, 0, 0]` | `[0, 0, 0]` | 将Nav2的odom与FAST-LIO启动时的世界参考系camera_init设为重合。这是坐标系衔接约定，不是相机安装外参；camera_init这个名称不指RGB相机。 | [launch/vlm_navigation.launch.py](../launch/vlm_navigation.launch.py:36) |
 
 `base_to_body` **只在适配器内部作为固定矩阵使用，不直接广播 `base_link→body` 静态TF**。适配器实际计算：
