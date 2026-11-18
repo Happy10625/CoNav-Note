@@ -6,6 +6,37 @@
 
 可配置无需密钥的远程连接，之后可以'ssh unitree-go'的命令连接上位机，十分方便。
 
+由于增加了拓展坞来接机械臂，拓展坞上有一个网口，因此网卡增加，IP绑定改变。
+
+| 设备       | 物理网口    | 接口                     | 固定 IP                                |
+| ---------- | ----------- | ------------------------ | -------------------------------------- |
+| Go2 上位机 | 拓展坞 RJ45 | USB 网卡，当前为 `eth0`  | `192.168.123.18/24`                    |
+| Go2 上位机 | 机身 RJ45   | PCIe 网卡，当前为 `eth1` | `192.168.1.100/24`                     |
+| 笔记本     | RJ45        | `enp4s0`                 | `192.168.123.222/24`                   |
+| 笔记本     | 同一 RJ45   | `enp4s0`                 | `192.168.1.222/32`（为了免与wifi冲突） |
+
+将IP与MAC地址绑定如下。设置了能连接两个IP的ssh,  使用命令`ssh unitree-go`
+
+config如下
+
+```txt
+Host unitree-go
+    HostName 192.168.123.18
+    User unitree
+    IdentityFile ~/.ssh/unitree_go_ed25519
+    IdentitiesOnly yes
+    ProxyCommand sh -c 'if nc -z -w 2 192.168.123.18 22; then exec nc 192.168.123.18 22; else exec nc 192.168.1.100 22; fi'
+```
+
+| 配置项目       | Wired connection 1  | Wired connection 2  |
+| -------------- | ------------------- | ------------------- |
+| MAC            | `6c:1f:f7:d2:ff:61` | `3c:6d:66:b2:a3:25` |
+| interface-name | 空                  | 空                  |
+| ipv4.method    | manual              | manual              |
+| ipv4.addresses | `192.168.123.18/24` | `192.168.1.100/24`  |
+| ipv4.gateway   | 无                  | `192.168.1.1`       |
+| autoconnect    | yes                 | yes                 |
+
 Go2 上位机里已经有现成的 XT16 驱动和相机驱动。
 
 拔出电池查看里面会有本机SN码显示。
